@@ -1,0 +1,30 @@
+diff --git a/node_modules/israeli-bank-scrapers/lib/scrapers/base-beinleumi-group.js b/node_modules/israeli-bank-scrapers/lib/scrapers/base-beinleumi-group.js
+index 4e821fa..864abdf 100644
+--- a/node_modules/israeli-bank-scrapers/lib/scrapers/base-beinleumi-group.js
++++ b/node_modules/israeli-bank-scrapers/lib/scrapers/base-beinleumi-group.js
+@@ -389,10 +389,22 @@ async function fetchAccounts(page, startDate, options) {
+     return [accountData];
+   }
+   const accounts = [];
++  let firstError;
+   for (const accountId of accountsIds) {
+-    await selectAccountBothUIs(page, accountId);
+-    const accountData = await fetchAccountDataBothUIs(page, startDate, options);
+-    accounts.push(accountData);
++    // Patched: skip an account that cannot be read (for example a savings-only
++    // account with no balance on the transactions page) instead of failing the
++    // whole scrape. If every account fails, the first error is still thrown.
++    try {
++      await selectAccountBothUIs(page, accountId);
++      const accountData = await fetchAccountDataBothUIs(page, startDate, options);
++      accounts.push(accountData);
++    } catch (e) {
++      firstError = firstError || e;
++      console.warn(`[beinleumi-group] skipped account ending ${String(accountId).slice(-4)}: ${e && e.message}`);
++    }
++  }
++  if (accounts.length === 0 && firstError) {
++    throw firstError;
+   }
+   return accounts;
+ }
